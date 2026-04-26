@@ -369,8 +369,17 @@ html, body {
 }
 
 @media (max-width: 768px) {
+    html, body {
+        height: auto;
+        min-height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
     .radio-container {
         flex-direction: column;
+        height: auto;
+        min-height: 100vh;
     }
 
     .lyrics-panel {
@@ -383,22 +392,40 @@ html, body {
     }
 
     .main-turntable {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            'history'
+            'controls'
+            'record';
+        justify-items: center;
+        align-content: flex-start;
+        row-gap: 12px;
+        justify-content: flex-start;
         padding: 20px;
+        padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
     }
 
     .recent-history-widget {
+        grid-area: history;
         position: static;
         width: 100%;
         min-height: auto;
-        margin-bottom: 14px;
+        margin-bottom: 0;
     }
 
     .turntable-wrapper {
+        grid-area: record;
         width: min(100%, 350px);
         max-width: 350px;
         max-height: 350px;
-        margin-bottom: 20px;
+        margin-bottom: 0;
         transform: none;
+    }
+
+    .turntable-controls {
+        grid-area: controls;
+        margin-bottom: 0;
     }
 
     .control-btn {
@@ -414,7 +441,13 @@ html, body {
 
 @media (max-width: 480px) {
     .lyrics-panel {
-        max-height: 150px;
+        max-height: 132px;
+        padding: 14px 14px 12px;
+    }
+
+    .main-turntable {
+        row-gap: 10px;
+        padding: 12px 12px calc(22px + env(safe-area-inset-bottom, 0px));
     }
 
     .lyrics-title {
@@ -422,20 +455,31 @@ html, body {
     }
 
     .recent-history-widget {
-        padding: 12px 10px;
+        margin-bottom: 10px;
+        padding: 10px 10px 9px;
+    }
+
+    .recent-history-title {
+        margin-bottom: 9px;
+        font-size: 11px;
     }
 
     .turntable-wrapper {
-        width: min(100%, 280px);
-        max-width: 280px;
-        max-height: 280px;
-        margin-bottom: 15px;
+        width: min(100%, 220px);
+        max-width: 220px;
+        max-height: 220px;
+        margin-bottom: 12px;
         transform: none;
     }
 
+    .turntable-controls {
+        gap: 16px;
+        margin-bottom: 0;
+    }
+
     .control-btn {
-        width: 45px;
-        height: 45px;
+        width: 44px;
+        height: 44px;
     }
 
     .control-btn svg {
