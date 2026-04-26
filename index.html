@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duha® Born Again Radio - Радиостанция</title>
+    <link rel="stylesheet" href="style.css?v=20260425-2">
+</head>
+<body>
+    <div class="radio-container">
+        <audio id="radioStream"></audio>
+        
+        <!-- Левая панель - Текст песни -->
+        <aside class="lyrics-panel">
+            <div class="lyrics-header">
+                <div class="station-brand-badge" aria-label="Логотип станции">
+                    <img
+                        src="assets/duha-logo.png"
+                        alt="Duha Born Again"
+                        onerror="this.style.display='none'; this.parentElement.classList.add('fallback');"
+                    >
+                    <span class="station-brand-fallback">Duha® Born Again Radio</span>
+                </div>
+                <h2 class="lyrics-title" id="lyricsTitle">Duha® Born Again Radio</h2>
+                <p class="lyrics-artist" id="lyricsArtist">Live Radio</p>
+            </div>
+            <div class="lyrics-scroll" id="lyricsContent">♪ Loading lyrics... ♪</div>
+        </aside>
+
+        <!-- Центральная пластинка на весь экран -->
+        <main class="main-turntable">
+            <section class="recent-history-widget" aria-label="Последние песни">
+                <h3 class="recent-history-title">Последние 5 песен</h3>
+                <div class="recent-history-list" id="recentHistoryList"></div>
+            </section>
+
+            <div class="turntable-wrapper">
+                <div class="turntable paused" id="turntable">
+                    <div class="vinyl-record">
+                        <div class="vinyl-label">
+                            <div class="label-inner">
+                                <img
+                                    class="label-photo"
+                                    src="assets/duha-center.jpg"
+                                    alt="Duha Radio Portrait"
+                                    onerror="this.style.display='none'; this.parentElement.classList.add('photo-fallback');"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Контролы снизу -->
+            <div class="turntable-controls">
+                <button class="control-btn" id="playBtn" title="Воспроизвести">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                </button>
+                <button class="control-btn" id="pauseBtn" style="display:none;" title="Пауза">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                </button>
+                <button class="control-btn" id="nextBtn" title="Следующая песня">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 4 13 12 5 20 5 4"></polygon>
+                        <polygon points="11 4 19 12 11 20 11 4"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        window.DUHA_PLAYLIST_URL = 'https://storage.yandexcloud.net/duhabornagainradio/playlist.json';
+    </script>
+    <script src="script.js?v=20260426-3"></script>
+</body>
+</html>
