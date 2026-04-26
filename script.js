@@ -68,6 +68,7 @@ const SESSION_START_ANTI_REPEAT_COUNT = 5;
 const ARTIST_ANTI_REPEAT_DEPTH = 3;
 const PLAY_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const MAX_PLAYS_PER_TRACK_PER_WINDOW = Infinity;
+const PLAYLIST_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 const PLAYLIST_URL = (window.DUHA_PLAYLIST_URL || '').trim();
 const LYRICS_API_BASE_URL = (window.DUHA_LYRICS_API_BASE_URL || '').trim();
 let playHistoryByFile = loadPlayHistory();
@@ -78,6 +79,7 @@ let recentArtists = [];
 let lyricsRequestToken = 0;
 const lyricsCache = new Map();
 let trackFailureInProgress = false;
+let renderedTrackKey = '';
 
 const fallbackMusicFiles = [
     'Balu_Brigada_-_Backseat_79753203.mp3',
@@ -460,6 +462,41 @@ function skipBrokenCurrentTrack(message) {
     });
 }
 
+function handlePlayError(err, options = {}) {
+    const { fromUserAction = false } = options;
+    const errorName = err?.name || '';
+
+    console.error('Ошибка воспроизведения:', err);
+
+    // AbortError часто возникает при быстром переключении src и не означает битый файл.
+    if (errorName === 'AbortError') {
+        return;
+    }
+
+    // Браузер может заблокировать autoplay вне жеста пользователя.
+    if (errorName === 'NotAllowedError') {
+        lyricsContent.textContent = fromUserAction
+            ? 'Браузер заблокировал запуск трека. Нажмите Play еще раз.'
+            : 'Автозапуск заблокирован браузером. Нажмите Play.';
+        return;
+    }
+
+    skipBrokenCurrentTrack('Не удалось воспроизвести трек. Он автоматически пропущен.');
+}
+
+function playWhenReady(options = {}) {
+    const attemptPlay = () => {
+        radioStream.play().catch((err) => handlePlayError(err, options));
+    };
+
+    if (radioStream.readyState >= 2) {
+        attemptPlay();
+        return;
+    }
+
+    radioStream.addEventListener('canplay', attemptPlay, { once: true });
+}
+
 function prettifyTrackTitle(filename) {
     return filename
         .replace(/\.[^/.]+$/, '')
@@ -659,9 +696,16 @@ function updateUIForCurrentTrack() {
         lyricsTitle.textContent = 'Duha® Born Again Radio';
         lyricsArtist.textContent = 'Local Playlist';
         lyricsContent.textContent = 'В папке music пока нет поддерживаемых файлов (mp3/wav/ogg/m4a/aac).';
+        renderedTrackKey = '';
         return;
     }
 
+    const currentTrackKey = `${current.file}|${current.title}|${current.artist}`;
+    if (renderedTrackKey === currentTrackKey) {
+        return;
+    }
+
+    renderedTrackKey = currentTrackKey;
     lyricsTitle.textContent = current.title;
     lyricsArtist.textContent = current.artist;
     updateLyricsForCurrentTrack();
@@ -713,6 +757,7 @@ function loadTrack(index) {
 
     radioStream.src = track.file;
     hasRecordedCurrentTrackPlay = false;
+    renderedTrackKey = '';
     radioStream.load();
     updateUIForCurrentTrack();
 }
@@ -755,7 +800,9 @@ async function refreshPlaylist(keepCurrentTrack = true) {
     return true;
 }
 
-function play() {
+function play(options = {}) {
+    const { fromUserAction = false } = options;
+
     if (playlist.length === 0) {
         lyricsContent.textContent = 'Плейлист пуст. Добавьте mp3/wav/ogg/m4a/aac в папку music.';
         return;
@@ -763,14 +810,15 @@ function play() {
 
     const current = playlist[currentTrackIndex];
     if (current && brokenTrackFiles.has(current.file)) {
-        internalNextTrack(true, { pushToHistory: false, failedTrackMessage: true });
+        internalNextTrack(true, {
+            pushToHistory: false,
+            failedTrackMessage: true,
+            fromUserAction
+        });
         return;
     }
 
-    radioStream.play().catch((err) => {
-        console.error('Ошибка воспроизведения:', err);
-        skipBrokenCurrentTrack('Не удалось воспроизвести трек. Он автоматически пропущен.');
-    });
+    playWhenReady({ fromUserAction });
 }
 
 function pause() {
@@ -781,7 +829,7 @@ function togglePlay() {
     if (isPlaying) {
         pause();
     } else {
-        play();
+        play({ fromUserAction: true });
     }
 }
 
@@ -811,7 +859,8 @@ const internalNextTrack = async (autoplay = true, options = {}) => {
     const {
         pushToHistory = false,
         failedTrackMessage = false,
-        failureMessage = 'Поврежденный трек пропущен автоматически. Воспроизведение продолжается.'
+        failureMessage = 'Поврежденный трек пропущен автоматически. Воспроизведение продолжается.',
+        fromUserAction = false
     } = options;
 
     await refreshPlaylist(true);
@@ -839,7 +888,7 @@ const internalNextTrack = async (autoplay = true, options = {}) => {
     }
 
     if (autoplay) {
-        play();
+        play({ fromUserAction });
     }
 };
 
@@ -852,16 +901,18 @@ function onAudioError() {
 }
 
 async function initPlayer() {
-    playBtn.addEventListener('click', play);
+    playBtn.addEventListener('click', () => play({ fromUserAction: true }));
     pauseBtn.addEventListener('click', pause);
-    nextBtn?.addEventListener('click', () => internalNextTrack(true));
+    nextBtn?.addEventListener('click', () => internalNextTrack(true, { fromUserAction: true }));
     turntable.addEventListener('click', togglePlay);
 
     radioStream.addEventListener('play', onPlay);
     radioStream.addEventListener('pause', onPause);
     radioStream.addEventListener('ended', onTrackEnded);
     radioStream.addEventListener('error', onAudioError);
-    radioStream.preload = 'metadata';
+    radioStream.preload = 'auto';
+    radioStream.setAttribute('playsinline', '');
+    radioStream.setAttribute('webkit-playsinline', '');
 
     await refreshPlaylist(false);
     const randomStartIndex = chooseRandomStartTrackIndex();
@@ -869,9 +920,17 @@ async function initPlayer() {
     renderRecentHistory();
 
     // Автоподхват новых файлов из music
-    setInterval(() => {
-        refreshPlaylist(true);
-    }, 10000);
+    setInterval(async () => {
+        if (isPlaying) {
+            return;
+        }
+
+        try {
+            await refreshPlaylist(true);
+        } catch (error) {
+            console.warn('Не удалось обновить плейлист в фоне:', error);
+        }
+    }, PLAYLIST_REFRESH_INTERVAL_MS);
 
     window.addEventListener('beforeunload', saveCurrentSessionRecentTracks);
 }
@@ -884,7 +943,7 @@ document.addEventListener('keydown', (e) => {
 
     if (e.code === 'ArrowRight') {
         e.preventDefault();
-        internalNextTrack(true);
+        internalNextTrack(true, { fromUserAction: true });
     }
 });
 
@@ -938,7 +997,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await refreshPlaylist(true);
         loadTrack(currentTrackIndex);
         if (wasPlaying) {
-            play();
+            play({ fromUserAction: false });
         }
     };
 
