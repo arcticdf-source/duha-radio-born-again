@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Duha® Born Again Radio - Радиостанция</title>
-    <link rel="stylesheet" href="style.css?v=20260426-6">
+    <link rel="stylesheet" href="style.css?v=20260427-2">
 </head>
 <body>
     <div class="radio-container">
@@ -31,6 +31,9 @@
         <main class="main-turntable">
             <section class="recent-history-widget" aria-label="Последние песни">
                 <h3 class="recent-history-title">Последние 5 песен</h3>
+                <p class="listeners-now" aria-live="polite">
+                    слушают сейчас: <span id="listenersNowCount">0</span>
+                </p>
                 <div class="recent-history-list" id="recentHistoryList"></div>
             </section>
 
@@ -77,6 +80,6 @@
     <script>
         window.DUHA_PLAYLIST_URL = 'https://storage.yandexcloud.net/duhabornagainradio/playlist.json';
     </script>
-    <script src="script.js?v=20260426-7"></script>
+    <script src="script.js?v=20260427-2"></script>
 </body>
 </html>

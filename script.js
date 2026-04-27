@@ -8,6 +8,7 @@ const lyricsTitle = document.getElementById('lyricsTitle');
 const lyricsArtist = document.getElementById('lyricsArtist');
 const lyricsContent = document.getElementById('lyricsContent');
 const recentHistoryList = document.getElementById('recentHistoryList');
+const listenersNowCount = document.getElementById('listenersNowCount');
 
 function resolveImageWithFallbacks(imageSelector, options) {
     const imageElement = document.querySelector(imageSelector);
@@ -67,8 +68,12 @@ const SESSION_RECENT_TRACKS_STORAGE_KEY = 'duhaBornAgainSessionRecentTracks';
 const SESSION_START_ANTI_REPEAT_COUNT = 5;
 const ARTIST_ANTI_REPEAT_DEPTH = 3;
 const PLAY_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-const MAX_PLAYS_PER_TRACK_PER_WINDOW = Infinity;
+const MAX_PLAYS_PER_TRACK_PER_WINDOW = 2;
 const PLAYLIST_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
+const LISTENERS_MIN = 600;
+const LISTENERS_MAX = 1300;
+const LISTENERS_BASELINE = 950;
+const LISTENERS_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
 const PLAYLIST_URL = (window.DUHA_PLAYLIST_URL || '').trim();
 const LYRICS_API_BASE_URL = (window.DUHA_LYRICS_API_BASE_URL || '').trim();
 let playHistoryByFile = loadPlayHistory();
@@ -79,7 +84,9 @@ let recentArtists = [];
 let lyricsRequestToken = 0;
 const lyricsCache = new Map();
 let trackFailureInProgress = false;
+let nextTrackInProgress = false;
 let renderedTrackKey = '';
+let simulatedListenersNow = null;
 
 const fallbackMusicFiles = [
     'Balu_Brigada_-_Backseat_79753203.mp3',
@@ -345,9 +352,100 @@ function getEligibleTrackIndices(excludeIndex = null) {
                 return false;
             }
 
+            if (getTrackPlayCountInWindow(track.file) >= MAX_PLAYS_PER_TRACK_PER_WINDOW) {
+                return false;
+            }
+
             return true;
         })
         .map(({ index }) => index);
+}
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffleArray(items) {
+    const result = [...items];
+    for (let i = result.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+}
+
+function seedRecentHistoryWithRandomTracks(excludeIndex = null) {
+    if (recentSongs.length > 0 || playlist.length === 0) {
+        return;
+    }
+
+    const poolWithExclude = playlist
+        .map((track, index) => ({ track, index }))
+        .filter(({ index }) => excludeIndex === null || index !== excludeIndex);
+
+    const sourcePool = poolWithExclude.length > 0
+        ? poolWithExclude
+        : playlist.map((track, index) => ({ track, index }));
+
+    const shuffled = shuffleArray(sourcePool);
+    const initialHistory = [];
+    const targetCount = Math.min(5, shuffled.length);
+
+    for (let i = 0; i < targetCount; i += 1) {
+        const track = shuffled[i].track;
+        initialHistory.push({
+            title: track.title,
+            artist: track.artist,
+            file: track.file
+        });
+    }
+
+    recentSongs = initialHistory;
+}
+
+function renderSimulatedListenersNow() {
+    if (!listenersNowCount || !Number.isFinite(simulatedListenersNow)) {
+        return;
+    }
+
+    listenersNowCount.textContent = String(simulatedListenersNow);
+}
+
+function updateSimulatedListenersNow() {
+    if (!Number.isFinite(simulatedListenersNow)) {
+        simulatedListenersNow = getRandomInt(LISTENERS_MIN, LISTENERS_MAX);
+        renderSimulatedListenersNow();
+        return;
+    }
+
+    const minStep = 6;
+    const maxStep = 28;
+    const step = getRandomInt(minStep, maxStep);
+    const biasToGrow = simulatedListenersNow <= LISTENERS_BASELINE ? 0.56 : 0.44;
+    let direction = Math.random() < biasToGrow ? 1 : -1;
+
+    if (simulatedListenersNow <= LISTENERS_MIN + 40) {
+        direction = 1;
+    } else if (simulatedListenersNow >= LISTENERS_MAX - 40) {
+        direction = -1;
+    }
+
+    simulatedListenersNow += direction * step;
+    simulatedListenersNow = Math.max(LISTENERS_MIN, Math.min(LISTENERS_MAX, simulatedListenersNow));
+    renderSimulatedListenersNow();
+}
+
+function initSimulatedListenersNow() {
+    if (!listenersNowCount) {
+        return;
+    }
+
+    simulatedListenersNow = getRandomInt(LISTENERS_MIN, LISTENERS_MAX);
+    renderSimulatedListenersNow();
+
+    setInterval(() => {
+        updateSimulatedListenersNow();
+    }, LISTENERS_UPDATE_INTERVAL_MS);
 }
 
 function getEligibleTrackIndicesAvoidingRecentArtists(excludeIndex = null) {
@@ -782,6 +880,12 @@ async function refreshPlaylist(keepCurrentTrack = true) {
     const loaded = await loadPlaylistFromMusicFolder();
 
     if (!loaded) {
+        // Keep the current in-memory playlist on transient refresh failures.
+        if (playlist.length > 0) {
+            updateUIForCurrentTrack();
+            return false;
+        }
+
         currentTrackIndex = 0;
         updateUIForCurrentTrack();
         return false;
@@ -856,6 +960,12 @@ function onPause() {
 }
 
 const internalNextTrack = async (autoplay = true, options = {}) => {
+    if (nextTrackInProgress) {
+        return;
+    }
+
+    nextTrackInProgress = true;
+
     const {
         pushToHistory = false,
         failedTrackMessage = false,
@@ -863,32 +973,36 @@ const internalNextTrack = async (autoplay = true, options = {}) => {
         fromUserAction = false
     } = options;
 
-    await refreshPlaylist(true);
+    try {
+        await refreshPlaylist(true);
 
-    if (pushToHistory) {
-        pushCurrentToHistory();
-    }
+        if (pushToHistory) {
+            pushCurrentToHistory();
+        }
 
-    if (!hasPlayableTracks()) {
-        pause();
-        lyricsContent.textContent = 'Все найденные треки недоступны или повреждены. Добавьте рабочие аудиофайлы в папку music.';
-        return;
-    }
+        if (!hasPlayableTracks()) {
+            pause();
+            lyricsContent.textContent = 'Все найденные треки недоступны или повреждены. Добавьте рабочие аудиофайлы в папку music.';
+            return;
+        }
 
-    const nextIndex = chooseRandomNextTrackIndex();
-    if (nextIndex === null) {
-        pause();
-        lyricsContent.textContent = 'Лимит на повторы за 24 часа достигнут. Повторите позже, когда окно обновится.';
-        return;
-    }
+        const nextIndex = chooseRandomNextTrackIndex();
+        if (nextIndex === null) {
+            pause();
+            lyricsContent.textContent = 'Лимит на повторы за 24 часа достигнут. Повторите позже, когда окно обновится.';
+            return;
+        }
 
-    loadTrack(nextIndex);
-    if (failedTrackMessage) {
-        lyricsContent.textContent = failureMessage;
-    }
+        loadTrack(nextIndex);
+        if (failedTrackMessage) {
+            lyricsContent.textContent = failureMessage;
+        }
 
-    if (autoplay) {
-        play({ fromUserAction });
+        if (autoplay) {
+            play({ fromUserAction });
+        }
+    } finally {
+        nextTrackInProgress = false;
     }
 };
 
@@ -916,6 +1030,7 @@ async function initPlayer() {
 
     await refreshPlaylist(false);
     const randomStartIndex = chooseRandomStartTrackIndex();
+    seedRecentHistoryWithRandomTracks(randomStartIndex);
     loadTrack(randomStartIndex ?? currentTrackIndex);
     renderRecentHistory();
 
@@ -986,6 +1101,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ]
     });
 
+    initSimulatedListenersNow();
     await initPlayer();
 
     if (window.location.protocol === 'file:') {

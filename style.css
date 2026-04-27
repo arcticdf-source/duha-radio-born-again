@@ -147,7 +147,20 @@ html, body {
     letter-spacing: 1.2px;
     text-transform: uppercase;
     color: #ff4444;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
+}
+
+.listeners-now {
+    margin-bottom: 10px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.64);
+    letter-spacing: 0.4px;
+    text-transform: lowercase;
+}
+
+.listeners-now span {
+    color: rgba(255, 198, 122, 0.94);
+    font-weight: 700;
 }
 
 .recent-history-list {
@@ -462,6 +475,11 @@ html, body {
     .recent-history-title {
         margin-bottom: 9px;
         font-size: 11px;
+    }
+
+    .listeners-now {
+        margin-bottom: 8px;
+        font-size: 10px;
     }
 
     .turntable-wrapper {
