@@ -74,6 +74,7 @@ const LISTENERS_MIN = 600;
 const LISTENERS_MAX = 1300;
 const LISTENERS_BASELINE = 950;
 const LISTENERS_UPDATE_INTERVAL_MS = 15 * 60 * 1000;
+const LISTENERS_STATE_STORAGE_KEY = 'duhaBornAgainListenersState';
 const PLAYLIST_URL = (window.DUHA_PLAYLIST_URL || '').trim();
 const LYRICS_API_BASE_URL = (window.DUHA_LYRICS_API_BASE_URL || '').trim();
 let playHistoryByFile = loadPlayHistory();
@@ -411,10 +412,50 @@ function renderSimulatedListenersNow() {
     listenersNowCount.textContent = String(simulatedListenersNow);
 }
 
+function saveSimulatedListenersState(updatedAt = Date.now()) {
+    if (!Number.isFinite(simulatedListenersNow)) {
+        return;
+    }
+
+    try {
+        localStorage.setItem(LISTENERS_STATE_STORAGE_KEY, JSON.stringify({
+            value: simulatedListenersNow,
+            updatedAt
+        }));
+    } catch (error) {
+        console.warn('Не удалось сохранить состояние счетчика слушателей:', error);
+    }
+}
+
+function loadSimulatedListenersState() {
+    try {
+        const raw = localStorage.getItem(LISTENERS_STATE_STORAGE_KEY);
+        if (!raw) {
+            return null;
+        }
+
+        const parsed = JSON.parse(raw);
+        const value = Number(parsed?.value);
+        const updatedAt = Number(parsed?.updatedAt);
+        const hasValidValue = Number.isFinite(value) && value >= LISTENERS_MIN && value <= LISTENERS_MAX;
+        const hasValidTimestamp = Number.isFinite(updatedAt) && updatedAt > 0;
+
+        if (!hasValidValue || !hasValidTimestamp) {
+            return null;
+        }
+
+        return { value, updatedAt };
+    } catch (error) {
+        console.warn('Не удалось прочитать состояние счетчика слушателей:', error);
+        return null;
+    }
+}
+
 function updateSimulatedListenersNow() {
     if (!Number.isFinite(simulatedListenersNow)) {
         simulatedListenersNow = getRandomInt(LISTENERS_MIN, LISTENERS_MAX);
         renderSimulatedListenersNow();
+        saveSimulatedListenersState();
         return;
     }
 
@@ -433,6 +474,7 @@ function updateSimulatedListenersNow() {
     simulatedListenersNow += direction * step;
     simulatedListenersNow = Math.max(LISTENERS_MIN, Math.min(LISTENERS_MAX, simulatedListenersNow));
     renderSimulatedListenersNow();
+    saveSimulatedListenersState();
 }
 
 function initSimulatedListenersNow() {
@@ -440,12 +482,30 @@ function initSimulatedListenersNow() {
         return;
     }
 
-    simulatedListenersNow = getRandomInt(LISTENERS_MIN, LISTENERS_MAX);
+    const savedState = loadSimulatedListenersState();
+    let lastUpdatedAt = Date.now();
+
+    if (savedState) {
+        simulatedListenersNow = savedState.value;
+        lastUpdatedAt = savedState.updatedAt;
+    } else {
+        simulatedListenersNow = getRandomInt(LISTENERS_MIN, LISTENERS_MAX);
+        saveSimulatedListenersState(lastUpdatedAt);
+    }
+
     renderSimulatedListenersNow();
 
-    setInterval(() => {
+    const elapsedMs = Date.now() - lastUpdatedAt;
+    const msUntilNextUpdate = elapsedMs >= LISTENERS_UPDATE_INTERVAL_MS
+        ? 0
+        : LISTENERS_UPDATE_INTERVAL_MS - elapsedMs;
+
+    setTimeout(() => {
         updateSimulatedListenersNow();
-    }, LISTENERS_UPDATE_INTERVAL_MS);
+        setInterval(() => {
+            updateSimulatedListenersNow();
+        }, LISTENERS_UPDATE_INTERVAL_MS);
+    }, msUntilNextUpdate);
 }
 
 function getEligibleTrackIndicesAvoidingRecentArtists(excludeIndex = null) {
