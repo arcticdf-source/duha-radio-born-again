@@ -1127,30 +1127,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         containerSelector: '.label-inner',
         fallbackClass: 'photo-fallback',
         candidates: [
-            'tima-center.jpg',
-            'tima-center.jpeg',
-            'tima-center.png',
-            'tima-center.JPG',
-            'tima-center.JPEG',
-            'tima-center.PNG',
             'assets/tima-center.jpg',
             'assets/tima-center.jpeg',
             'assets/tima-center.png',
             'assets/tima-center.JPG',
             'assets/tima-center.JPEG',
-            'assets/tima-center.PNG',
-            'duha-center.jpg',
-            'duha-center.jpeg',
-            'duha-center.png',
-            'duha-center.JPG',
-            'duha-center.JPEG',
-            'duha-center.PNG',
-            'assets/duha-center.jpg',
-            'assets/duha-center.jpeg',
-            'assets/duha-center.png',
-            'assets/duha-center.JPG',
-            'assets/duha-center.JPEG',
-            'assets/duha-center.PNG'
+            'assets/tima-center.PNG'
         ]
     });
 
